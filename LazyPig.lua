@@ -44,7 +44,7 @@ LPCONFIG.REMOVEMANABUFFS = false   -- Autoremove Blessing of Wisdom, Arcane Inte
 BINDING_HEADER_LP_HEADER = "_LazyPig";
 BINDING_NAME_LOGOUT = "Logout";
 BINDING_NAME_UNSTUCK = "Unstuck";
-BINDING_NAME_RELOAD = "Reaload UI";
+BINDING_NAME_RELOAD = "Reload UI";
 BINDING_NAME_DUEL = "Target WSG EFC/Duel Request-Cancel";
 BINDING_NAME_WSGDROP = "Drop WSG Flag/Remove Slow Fall";
 BINDING_NAME_MENU = "_LazyPig Menu";
@@ -105,6 +105,8 @@ local ChatMessage = {{}, {}, INDEX = 1}
 local ScheduleSplit = {}
 local ScheduleSplitCount = {}
 local GossipOptions = {}
+local GossipTexts = {}
+local AutoRolledIDs = {}
 
 ScheduleSplit.active = nil
 ScheduleSplit.sslot = {}
@@ -137,7 +139,7 @@ function LazyPig_OnLoad()
 	SlashCmdList["LAZYPIG"] = LazyPig_Command;
 	this:RegisterEvent("ADDON_LOADED")
 	this:RegisterEvent("PLAYER_LOGIN")
-	this:RegisterEvent("CHAT_MSG")
+
 	this:RegisterEvent("CHAT_MSG_SYSTEM")
 	this:RegisterEvent("PARTY_INVITE_REQUEST")
 	this:RegisterEvent("CONFIRM_SUMMON")
@@ -153,6 +155,7 @@ function LazyPig_OnLoad()
 	this:RegisterEvent("QUEST_PROGRESS")
 	this:RegisterEvent("QUEST_COMPLETE")
 	this:RegisterEvent("START_LOOT_ROLL")
+	this:RegisterEvent("CONFIRM_LOOT_ROLL")
 	this:RegisterEvent("DUEL_REQUESTED")
 	this:RegisterEvent("MERCHANT_SHOW")
 	this:RegisterEvent("MERCHANT_CLOSED")
@@ -316,7 +319,7 @@ function LazyPig_OnUpdate(elapsed)
 		Check_Bg_Status();
 	end
 
-	if bgstatus ~= 0 and (bgstatus + 0.5) > current_time then
+	if bgstatus ~= 0 and (bgstatus + 0.5) < current_time then
 		bgstatus = 0
 		Check_Bg_Status()
 		LazyPig_AutoLeaveBG()
@@ -489,6 +492,20 @@ function LazyPig_OnEvent(event)
 	elseif event == "START_LOOT_ROLL" then
 		LazyPig_AutoRoll(arg1)
 
+	elseif event == "CONFIRM_LOOT_ROLL" then
+		if AutoRolledIDs[arg1] and AutoRolledIDs[arg1] == arg2 then
+			AutoRolledIDs[arg1] = nil
+			for i=1,STATICPOPUP_NUMDIALOGS do
+				local frame = _G["StaticPopup"..i]
+				if frame:IsShown() and frame.which == "CONFIRM_LOOT_ROLL" and frame.data == arg1 and frame.data2 == arg2 then
+					_G["StaticPopup"..i.."Button1"]:Click()
+					return
+				end
+			end
+			ConfirmLootRoll(arg1, arg2)
+			StaticPopup_Hide("CONFIRM_LOOT_ROLL")
+		end
+
 	elseif event == "UI_ERROR_MESSAGE" then
 		if ErrorStanding[arg1] then
 			SitOrStand()
@@ -523,7 +540,7 @@ function LazyPig_OnEvent(event)
 		elseif LPCONFIG.AQUE and string.find(arg1 ,"Queued") and UnitIsPartyLeader("player") then
 			if UnitInRaid("player") then
 				SendChatMessage(arg1, "RAID");
-			elseif GetNumPartyMembers() > 1 then
+			elseif GetNumPartyMembers() > 0 then
 				SendChatMessage(arg1, "PARTY");
 			end
 
@@ -554,12 +571,14 @@ function LazyPig_OnEvent(event)
 
 	elseif event == "GOSSIP_SHOW" then
 		GossipOptions = twipe(GossipOptions)
+		GossipTexts = twipe(GossipTexts)
 		local dsc = nil
 		local gossipnr = nil
 		local gossipbreak = nil
 		local processgossip = LPCONFIG.GOSSIP and not IsShiftKeyDown()
 
-		dsc,GossipOptions[1],_,GossipOptions[2],_,GossipOptions[3],_,GossipOptions[4],_,GossipOptions[5] = GetGossipOptions()
+		GossipTexts[1],GossipOptions[1],GossipTexts[2],GossipOptions[2],GossipTexts[3],GossipOptions[3],GossipTexts[4],GossipOptions[4],GossipTexts[5],GossipOptions[5] = GetGossipOptions()
+		dsc = GossipTexts[1] or ""
 
 		ActiveQuest = LazyPig_ProcessQuests(GetGossipActiveQuests())
 		AvailableQuest = LazyPig_ProcessQuests(GetGossipAvailableQuests())
@@ -581,6 +600,7 @@ function LazyPig_OnEvent(event)
 			if not GossipOptions[i] then
 				break
 			end
+			local optText = GossipTexts[i] or ""
 			if GossipOptions[i] == "binder" then
 				local bind = GetBindLocation();
 				if not (bind == GetSubZoneText() or bind == GetZoneText() or bind == GetRealZoneText() or bind == GetMinimapZoneText()) then
@@ -588,14 +608,14 @@ function LazyPig_OnEvent(event)
 				end
 			elseif gossipnr then
 				gossipbreak = true
-			elseif GossipOptions[i] == "trainer" and dsc == "Reset my talents." then
+			elseif GossipOptions[i] == "trainer" and optText == "Reset my talents." then
 				gossipbreak = false
 			elseif ((GossipOptions[i] == "trainer" and processgossip)
 					or (GossipOptions[i] == "vendor" and processgossip)
 					or (GossipOptions[i] == "battlemaster" and (LPCONFIG.QBG or processgossip))
 					or (GossipOptions[i] == "gossip" and processgossip)
-					or (GossipOptions[i] == "banker" and string.find(dsc, "^I would like to check my deposit box.") and processgossip)
-					or (GossipOptions[i] == "petition" and (IsAltKeyDown()or IsShiftKeyDown() or string.find(dsc, "Teleport me to the Molten Core")) and processgossip))
+					or (GossipOptions[i] == "banker" and string.find(optText, "^I would like to check my deposit box.") and processgossip)
+					or (GossipOptions[i] == "petition" and (IsAltKeyDown() or IsShiftKeyDown() or string.find(optText, "Teleport me to the Molten Core")) and processgossip))
 				then
 				gossipnr = i
 			elseif GossipOptions[i] == "taxi" and processgossip then
@@ -659,7 +679,7 @@ end
 
 function LazyPig_MailtoCheck(msg)
 	if MailTo_Option then -- to avoid conflicts with mailto addon
-		local disable = LPCONFIG.RIGHT or LPCONFIG.SHIFT
+		local disable = LPCONFIG.RIGHT or LPCONFIG.SHIFTSPLIT
 		MailTo_Option.noshift = disable
 		MailTo_Option.noauction = disable
 		MailTo_Option.notrade = disable
@@ -1013,7 +1033,7 @@ function LazyPig_AutoRoll(id)
 		RollOnLoot(id, 1)
 	end
 	-- Need on everything in Alterac Valley
-	if LazyPig_BG() then
+	if LazyPig_BG() and GetRealZoneText() == "Alterac Valley" then
 		roll = 1
 		RollOnLoot(id, 1)
 	end
@@ -1026,6 +1046,10 @@ function LazyPig_AutoRoll(id)
 	if LPCONFIG.NAXX and NaxxLoot[itemID] then
 		roll = LPCONFIG.NAXX
 		RollOnLoot(id, LPCONFIG.NAXX)
+	end
+
+	if type(roll) == "number" and roll ~= 0 then
+		AutoRolledIDs[id] = roll
 	end
 
 	if LPCONFIG.ROLLMSG and type(roll) == "number" then
@@ -1088,16 +1112,18 @@ function LazyPig_GreySellRepair()
 		for bag = 0, NUM_BAG_FRAMES do
 			for slot = 1, GetContainerNumSlots(bag) do
 				local link = GetContainerItemLink(bag, slot)
-				local _, _, locked = GetContainerItemInfo(bag, slot)
-				local _, _, id = string.find(link or "", "item:(%d+)")
-				id = tonumber(id)
-				local _, _, quality = GetItemInfo(id or 0)
-				if quality and quality == 0 and not locked then
-					UseContainerItem(bag, slot)
-					i = i + 1
-					if i > 4 then
-						bag = NUM_BAG_FRAMES
-						break
+				if link then
+					local _, _, locked = GetContainerItemInfo(bag, slot)
+					local _, _, id = string.find(link, "item:(%d+)")
+					id = tonumber(id)
+					local _, _, quality = id and GetItemInfo(id)
+					if quality and quality == 0 and not locked then
+						UseContainerItem(bag, slot)
+						i = i + 1
+						if i > 4 then
+							bag = NUM_BAG_FRAMES
+							break
+						end
 					end
 				end
 			end
@@ -1335,12 +1361,13 @@ function LazyPig_DropWSGFlag_NoggBuff()
 		LazyPig_Buff_Tooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 		LazyPig_Buff_Tooltip:SetPlayerBuff(index)
 		local desc = LazyPig_Buff_TooltipTextLeft1:GetText()
-		if string.find(desc, tooltipfind1) or string.find(desc, tooltipfind3) then
-			CancelPlayerBuff(counter)
-		end
-		desc = LazyPig_Buff_TooltipTextLeft2:GetText()
-		if string.find(desc, tooltipfind2) then
-			CancelPlayerBuff(counter)
+		if desc and (string.find(desc, tooltipfind1) or string.find(desc, tooltipfind3)) then
+			CancelPlayerBuff(index)
+		else
+			desc = LazyPig_Buff_TooltipTextLeft2:GetText()
+			if desc and string.find(desc, tooltipfind2) then
+				CancelPlayerBuff(index)
+			end
 		end
 		counter = counter + 1
 	end
@@ -1755,7 +1782,6 @@ function LazyPig_ZoneCheck()
 						UIErrorsFrame:Clear();
 						UIErrorsFrame:AddMessage("Leaving World")
 					end
-					return
 				end
 			end
 			if (LPCONFIG.WORLDRAID or LPCONFIG.WORLDDUNGEON or LPCONFIG.WORLDBG) and not leavechat then
@@ -2021,8 +2047,13 @@ function LazyPig_Target_EFC()
 			UIErrorsFrame:AddMessage("OUT OF RANGE - EFC - "..strupper(wsgefc))
 		elseif strlower(GetUnitName("target")) == wsgefc then
 			local class, classFileName = UnitClass("target")
-			local color = RAID_CLASS_COLORS[classFileName]
-			UIErrorsFrame:AddMessage(strupper(class.." - EFC - "..wsgefc), color.r, color.g, color.b)
+			local color = classFileName and RAID_CLASS_COLORS[classFileName]
+			if color then
+				UIErrorsFrame:AddMessage(strupper((class or "").." - EFC - "..wsgefc), color.r, color.g, color.b)
+			else
+				UIErrorsFrame:AddMessage(strupper((class or "").." - EFC - "..wsgefc))
+			end
+
 		end
 	end
 end

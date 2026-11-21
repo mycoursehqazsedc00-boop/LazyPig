@@ -209,7 +209,7 @@ function LazyPig_CreateOptionsFrame()
 	end)
 
 	-- Keybinds Window Button
-	local btn_keybinds = CreateFrame("Button", "LazyPigOptionsFrameKeibindsButton", frame, "UIPanelButtonTemplate2")
+	local btn_keybinds = CreateFrame("Button", "LazyPigOptionsFrameKeybindsButton", frame, "UIPanelButtonTemplate2")
 	btn_keybinds:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -33, 18)
 	btn_keybinds:SetWidth(120)
 	btn_keybinds:SetHeight(20)
