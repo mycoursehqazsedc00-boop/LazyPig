@@ -1264,7 +1264,7 @@ function LazyPig_ReplyQuest(event)
 			LazyPig_SelectGossipAvailableQuest(1, true)
 		elseif table.getn(ActiveQuest) == 1 and table.getn(AvailableQuest) == 0 or IsAltKeyDown() and table.getn(ActiveQuest) > 0 then
 			local nr = table.getn(ActiveQuest)
-			if QuestRecord["progress"] and (nr - QuestRecord["index"]) > 0 then
+			if QuestRecord["progress"] and (nr - QuestRecord["index"]) > 1 then
 				--DEFAULT_CHAT_FRAME:AddMessage("++quest dec nr - "..nr.." index - "..QuestRecord["index"])
 				QuestRecord["index"] = QuestRecord["index"] + 1
 				nr = nr - QuestRecord["index"]
@@ -1289,7 +1289,7 @@ function LazyPig_ReplyQuest(event)
 			LazyPig_SelectAvailableQuest(1, true)
 		elseif table.getn(ActiveQuest) == 1 and table.getn(AvailableQuest) == 0 or IsAltKeyDown() and table.getn(ActiveQuest) > 0 then
 			local nr = table.getn(ActiveQuest)
-			if QuestRecord["progress"] and (nr - QuestRecord["index"]) > 0 then
+			if QuestRecord["progress"] and (nr - QuestRecord["index"]) > 1 then
 				--DEFAULT_CHAT_FRAME:AddMessage("--quest dec nr - "..nr.." index - "..QuestRecord["index"])
 				QuestRecord["index"] = QuestRecord["index"] + 1
 				nr = nr - QuestRecord["index"]
@@ -1489,7 +1489,9 @@ function LazyPig_UseContainerItem(ParentID,ItemID)
 
 		ItemArray = twipe(ItemArray)
 		local name, id = LazyPig_DecodeItemLink(GetContainerItemLink(ParentID,ItemID))
+		if not id then return end
 		local _, _, _, _, _, _, maxstack = GetItemInfo(id)
+		if not maxstack then return end
 		local out_slpit = tmp_splitval
 
 		if out_slpit > maxstack then
@@ -1786,7 +1788,7 @@ function LazyPig_ZoneCheck()
 			end
 			if (LPCONFIG.WORLDRAID or LPCONFIG.WORLDDUNGEON or LPCONFIG.WORLDBG) and not leavechat then
 				local framename = chatFrame:GetName()
-				if id == 0 then
+				if id == 0 and framename == "ChatFrame1" then
 					UIErrorsFrame:Clear();
 					UIErrorsFrame:AddMessage("Joining World");
 					JoinChannelByName("world", nil, chatFrame:GetID());
